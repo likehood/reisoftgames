@@ -22,7 +22,7 @@
   #touch .pad { display:grid; gap:8px; pointer-events:auto; }
   #touch .btns { grid-template-columns:repeat(2,min(72px,18vw)); grid-template-rows:repeat(2,min(62px,15vw)); gap:8px; }
   #touch button { border:2px solid #e8e2d066; background:#e8e2d01c; color:var(--fg); border-radius:14px;
-    font:inherit; font-size:14px; letter-spacing:-0.5px; font-weight:bold; touch-action:none; padding:0; }
+    font:inherit; font-size:14px; line-height:1.15; letter-spacing:-0.5px; font-weight:bold; touch-action:none; padding:0; }
   #touch button.on { background:#ffd84a66; border-color:#ffd84a; }
   #touch button[data-k=hp], #touch button[data-k=hk] { border-color:#ff8a5b99; }
   #stick { position:relative; width:min(136px,34vw); height:min(136px,34vw); border-radius:50%; pointer-events:auto; touch-action:none;
@@ -48,8 +48,8 @@
 <div id="touch">
   <div id="stick"><div id="knob"></div></div>
   <div class="pad btns">
-    <button data-k="lp">베기</button><button data-k="hp">내려베기</button>
-    <button data-k="lk">찌르기</button><button data-k="hk">후려베기</button>
+    <button data-k="lp">찌르기</button><button data-k="hp">베기</button>
+    <button data-k="lk">하단<br>찌르기</button><button data-k="hk">하단<br>베기</button>
   </div>
 </div>
 <script>
@@ -137,7 +137,7 @@ const SFX = {
 
 // ---------------------------------------------------------------- 입력
 const keys = {}, pressed = {};
-// 1인용: WASD 이동(W 점프·S 앉기) + O 베기 · P 내려베기 · K 찌르기 · L 후려베기
+// 1인용: WASD 이동(W 점프·S 앉기) + O 찌르기 · P 베기 (중단) · K 하단 찌르기 · L 하단 베기 (하단)
 const KEYMAP_1P = { left:['KeyA','ArrowLeft'], right:['KeyD','ArrowRight'], down:['KeyS','ArrowDown'], up:['KeyW','ArrowUp'],
   lp:['KeyO'], hp:['KeyP'], lk:['KeyK'], hk:['KeyL'] };
 const KEYMAP_VS1 = { left:['KeyA'], right:['KeyD'], down:['KeyS'], up:['KeyW'], lp:['KeyF'], hp:['KeyG'], lk:['KeyV'], hk:['KeyB'] };
@@ -247,31 +247,33 @@ const DUMMY = { name:'목인', title:'수련용 허수아비 (공격만 함)', p
 // w=준비 a=판정 r=후딜(프레임) · h: mid=서서/앉아 막기 모두 OK · low=앉아 막기만 · high=서서 막기만(점프 공격)
 // light=약 기술(닿으면 강 기술로 캔슬 가능) · feint=준비 중 뒤로 누르면 취소 · anti=대공 · down=넘어뜨림 · reach=위로 닿는 높이
 const MOVES = {
-  // ── 서서 (중단) ──  O 베기: 가장 빠름 · K 찌르기: 가장 김 · P 내려베기: 한 방 · L 후려베기: 막아도 기력을 크게 깎고 밀어냄
-  sLP:{ n:'베기',     w:5,  a:3, r:9,  range:36, dmg:6,  h:'mid',  gk:8,  stun:13, kb:1.2, lunge:0.8, reach:16, light:1,
-        pw:{ hx:4, hy:-21, ang:-50 }, pa:{ lean:2, hx:13, hy:-19, ang:15, sp:7 } },
-  sLK:{ n:'찌르기',   w:8,  a:3, r:14, range:52, dmg:8,  h:'mid',  gk:10, stun:15, kb:1.4, lunge:1.6, reach:14, light:1,
-        pw:{ lean:-2, hx:-2, hy:-18, ang:0, sp:6 }, pa:{ lean:4, hx:15, hy:-19, ang:0, sp:11 } },
-  sHP:{ n:'내려베기', w:15, a:4, r:20, range:46, dmg:18, h:'mid',  gk:30, stun:22, kb:2.4, lunge:2.2, reach:28, heavy:1, feint:1,
-        pw:{ lean:-3, hx:-1, hy:-28, ang:-110, sp:6 }, pa:{ lean:4, hx:11, hy:-18, ang:10, sp:10, cr:2 } },
-  sHK:{ n:'후려베기', w:12, a:5, r:20, range:42, dmg:14, h:'mid',  gk:38, stun:20, kb:3.6, lunge:1.4, reach:22, heavy:1, feint:1,
-        pw:{ lean:-3, hx:-4, hy:-18, ang:175, sp:7 }, pa:{ lean:3, hx:12, hy:-17, ang:5, sp:10 } },
-  // ── 앉아 (하단, 올려베기만 중단·대공) ──
-  cLP:{ n:'앉아 베기', w:5, a:3, r:9, range:34, dmg:5, h:'low', gk:8, stun:12, kb:1, lunge:0.6, reach:8, light:1,
-        pw:{ hx:4, hy:-12, ang:-30 }, pa:{ lean:2, hx:12, hy:-9, ang:18 } },
-  cLK:{ n:'낮게 찌르기', w:8, a:3, r:14, range:48, dmg:6, h:'low', gk:9, stun:13, kb:1, lunge:1.2, reach:6, light:1,
-        pw:{ lean:-2, hx:-1, hy:-8, ang:3 }, pa:{ lean:3, hx:14, hy:-7, ang:3 } },
-  cHP:{ n:'올려베기', w:10, a:5, r:22, range:32, dmg:14, h:'mid', gk:24, stun:22, kb:2, lunge:0.8, reach:70, anti:1, heavy:1,
+  // O·P = 중단(서서 막든 앉아 막든 막힘) · K·L = 하단(앉아 막기만) · 점프 공격 = 상단(서서 막기만)
+  // O 찌르기: 빠르고 후딜 짧음 · P 베기: 조금 더 빠르고 세지만 후딜이 있음
+  // K 하단 찌르기: 빠르고 후딜 거의 없음 · L 하단 베기: 느리고 후딜 큼, 맞으면 넘어짐
+  sLP:{ n:'찌르기',   w:5,  a:3, r:9,  range:40, dmg:6,  h:'mid', gk:8,  stun:13, kb:1.2, lunge:1.2, reach:16, light:1, thrust:1,
+        pw:{ lean:-2, hx:-1, hy:-19, ang:0, sp:6 }, pa:{ lean:4, hx:15, hy:-19, ang:0, sp:10 } },
+  sHP:{ n:'베기',     w:4,  a:3, r:15, range:40, dmg:11, h:'mid', gk:16, stun:17, kb:1.8, lunge:1.4, reach:20, heavy:1,
+        pw:{ lean:-2, hx:1, hy:-25, ang:-80, sp:6 }, pa:{ lean:4, hx:13, hy:-18, ang:20, sp:10 } },
+  sLK:{ n:'하단 찌르기', w:5, a:3, r:5, range:38, dmg:5, h:'low', gk:8, stun:12, kb:1, lunge:1, reach:6, light:1, thrust:1,
+        pw:{ lean:-2, hx:0, hy:-10, ang:8, sp:6, cr:3 }, pa:{ lean:4, hx:14, hy:-8, ang:8, sp:11, cr:4 } },
+  sHK:{ n:'하단 베기',  w:11, a:4, r:22, range:42, dmg:14, h:'low', gk:26, stun:0,  kb:1.5, lunge:1.2, reach:6, heavy:1, down:1, feint:1,
+        pw:{ lean:-3, hx:-3, hy:-12, ang:165, sp:7, cr:2 }, pa:{ lean:4, hx:13, hy:-5, ang:10, sp:11, cr:4 } },
+  // 앉아서: 찌르기·하단 기술은 자세만 낮게, 베기는 올려베기(대공)
+  cLP:{ n:'앉아 찌르기', w:5, a:3, r:9, range:38, dmg:5, h:'mid', gk:8, stun:12, kb:1, lunge:1, reach:8, light:1, thrust:1,
+        pw:{ lean:-2, hx:-1, hy:-13, ang:-4 }, pa:{ lean:3, hx:14, hy:-13, ang:-4 } },
+  cHP:{ n:'올려베기', w:6,  a:5, r:18, range:32, dmg:11, h:'mid', gk:16, stun:18, kb:2, lunge:0.8, reach:70, anti:1, heavy:1,
         pw:{ lean:-2, hx:2, hy:-9, ang:160 }, pa:{ lean:2, hx:8, hy:-28, ang:-75, cr:3 } },
-  cHK:{ n:'다리베기', w:12, a:4, r:26, range:44, dmg:12, h:'low', gk:26, stun:0, kb:1.5, lunge:1, reach:6, heavy:1, down:1,
+  cLK:{ n:'앉아 하단 찌르기', w:5, a:3, r:5, range:38, dmg:5, h:'low', gk:8, stun:12, kb:1, lunge:1, reach:6, light:1, thrust:1,
+        pw:{ lean:-2, hx:-1, hy:-7, ang:4 }, pa:{ lean:3, hx:14, hy:-5, ang:4 } },
+  cHK:{ n:'다리베기', w:11, a:4, r:22, range:44, dmg:14, h:'low', gk:26, stun:0, kb:1.5, lunge:1, reach:6, heavy:1, down:1, feint:1,
         pw:{ lean:-2, hx:-3, hy:-8, ang:172 }, pa:{ lean:3, hx:12, hy:-4, ang:12 } },
-  // ── 점프 (상단) ──
-  jLP:{ n:'공중 베기', w:3, a:8, range:32, dmg:7,  h:'high', gk:10, stun:14, kb:1.4, air:1, light:1,
+  // 점프 (모두 상단)
+  jLP:{ n:'공중 찌르기', w:3, a:8, range:32, dmg:7,  h:'high', gk:10, stun:14, kb:1.4, air:1, light:1,
         pw:{ hx:4, hy:-24, ang:-60 }, pa:{ hx:11, hy:-18, ang:40 } },
+  jHP:{ n:'공중 베기', w:5, a:7, range:40, dmg:12, h:'high', gk:18, stun:18, kb:2, air:1, heavy:1,
+        pw:{ lean:-3, hx:0, hy:-30, ang:-120 }, pa:{ lean:3, hx:11, hy:-16, ang:55 } },
   jLK:{ n:'내리찌르기', w:4, a:9, range:30, dmg:8, h:'high', gk:10, stun:14, kb:1.4, air:1, light:1,
         pw:{ hx:2, hy:-22, ang:30 }, pa:{ lean:2, hx:9, hy:-12, ang:60 } },
-  jHP:{ n:'공중 내려베기', w:7, a:7, range:42, dmg:14, h:'high', gk:22, stun:20, kb:2, air:1, heavy:1,
-        pw:{ lean:-3, hx:0, hy:-30, ang:-120 }, pa:{ lean:3, hx:11, hy:-16, ang:55 } },
   jHK:{ n:'공중 후려베기', w:6, a:7, range:40, dmg:13, h:'high', gk:24, stun:20, kb:2.4, air:1, heavy:1,
         pw:{ lean:-3, hx:-3, hy:-20, ang:180 }, pa:{ lean:3, hx:12, hy:-16, ang:20 } },
 };
@@ -422,12 +424,12 @@ class AI {
     let low = Math.random() < p.lowMix;
     if (op.state === 'guard' && p.read > 0.6) {
       if (op.gLow && Math.random() < 0.35 + p.jump) return 'jump';   // 앉아 막는 상대 → 점프(상단)로 흔든다
-      low = !op.gLow;                                                   // 서서 막는 상대 → 하단
+      low = !op.gLow;                                                   // 서서 막는 상대 → 하단(K·L)
     }
-    const heavy = Math.random() < (op.state === 'guard' ? 0.65 : p.heavyPref);
-    const id = (low ? 'c' : 's') + (heavy ? 'H' : 'L') + (Math.random() < 0.5 ? 'K' : 'P');
+    const heavy = Math.random() < (op.state === 'guard' ? 0.6 : p.heavyPref);
+    const id = (Math.random() < 0.25 ? 'c' : 's') + (heavy ? 'H' : 'L') + (low ? 'K' : 'P');
     this.chainKey = !heavy && Math.random() < p.combo ? (Math.random() < 0.5 ? 'hp' : 'hk') : null;
-    this.feintAt = heavy && MOVES[id].feint && Math.random() < p.feint ? this.f + rndi(4, 9) : -1;
+    this.feintAt = heavy && MOVES[id].feint && Math.random() < p.feint ? this.f + rndi(4, 8) : -1;
     return id;
   }
   think(me, op) {
@@ -664,6 +666,9 @@ function drawFighter(f) {
     if (p.kick) {
       const kx = L(p.kick[0]), ky = Y + p.kick[1];
       for (let i = 1; i <= 3; i++) line(kx - i * 3 * d, ky + i * 2, kx - i * 6 * d, ky + i * 4, col);
+    } else if (f.atk.thrust) {
+      for (let i = 1; i <= 3; i++) line(hxW + ux * (24 - i * 7), hyW + uy * (24 - i * 7) - 2, hxW + ux * (24 - i * 7) - 4 * d, hyW + uy * (24 - i * 7) - 2, col);
+      for (let i = 1; i <= 3; i++) line(hxW + ux * (24 - i * 7), hyW + uy * (24 - i * 7) + 2, hxW + ux * (24 - i * 7) - 4 * d, hyW + uy * (24 - i * 7) + 2, col);
     } else {
       for (let i = 0; i < 3; i++) {
         const aa = a - (i + 1) * 0.35;
@@ -1024,7 +1029,7 @@ function drawHudText() {
     const y = H - 22;
     ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(0, y * S - 2 * S, cv.width, 24 * S);
     text('A/D 이동 · W 점프 · S 앉기 · 뒤로 누르기=막기 (맞기 직전에 누르면 받아넘기기)', W / 2, y, 6, '#d8d2c0', 'center', null);
-    text('O 베기 · P 내려베기 · K 찌르기 · L 후려베기 · 베기/찌르기→강 캔슬=연속기 · H 도움말 · Esc 메뉴', W / 2, y + 9, 6, '#a8a290', 'center', null);
+    text('중단: O 찌르기 · P 베기 / 하단: K 찌르기 · L 베기 · O/K→P/L 캔슬=연속기 · H 도움말 · Esc 메뉴', W / 2, y + 9, 6, '#a8a290', 'center', null);
   }
 }
 function drawTitle() {
@@ -1040,19 +1045,19 @@ function drawTitle() {
 function drawHelp() {
   const L = [
     ['이동', 'A ◀ · D ▶ · W 점프 · S 앉기   (터치: 왼쪽 스틱)'],
-    ['O 베기 / K 찌르기', '빠른 기술 — 베기는 가장 빠르고, 찌르기는 가장 멀리 닿는다'],
-    ['P 내려베기 / L 후려베기', '느린 한 방 — 후려베기는 막아도 기력을 크게 깎는다'],
+    ['중단 O 찌르기 / P 베기', '찌르기는 빠르고 후딜이 짧다 · 베기는 조금 더 빠르고 세지만 후딜이 있다'],
+    ['하단 K 찌르기 / L 베기', '하단 찌르기는 빠르고 후딜이 거의 없다 · 하단 베기는 느리고 후딜이 크지만 넘어뜨린다'],
     ['막기', '상대 반대쪽(뒤)으로 누르고 있기 · 뒤+아래 = 앉아 막기'],
-    ['공격 높이', '서서=중단(어느 막기든 OK) · 앉아=하단 · 점프=상단'],
+    ['공격 높이', 'O·P=중단(어느 막기든 OK) · K·L=하단(앉아 막기) · 점프=상단(서서 막기)'],
     ['받아넘기기', '맞기 직전에 뒤로 누르기 시작 → 상대 경직 (연타는 무효)'],
     ['되치기 일섬', '받아넘긴 직후 1초 안에 공격 = 2배 피해'],
-    ['연속기', '베기·찌르기가 닿는 순간 내려베기·후려베기 → 캔슬'],
-    ['대공 / 다리베기', '앉아 내려베기 = 올려베기(대공 1.3배) · 앉아 후려베기 = 넘어뜨리기'],
-    ['페인트', '내려베기·후려베기 준비 중 뒤로 → 동작 취소'],
+    ['연속기', 'O나 K가 닿는 순간 P나 L → 캔슬 (예: K → L 하단 연속기)'],
+    ['대공', '앉아서 P = 올려베기, 점프한 상대에게 1.3배'],
+    ['페인트', 'L 준비 중 뒤로 → 동작 취소'],
     ['2P 대결', '1P: WASD + F G V B   2P: 방향키 + O P K L'],
   ];
   text('조 작 법', W / 2, 12, 14, '#f4efd8', 'center');
-  L.forEach(([a, b], i) => { text(a, 16, 34 + i * 13, 7, '#ffd84a'); text(b, 128, 34 + i * 13, 7, '#e8e2d0'); });
+  L.forEach(([a, b], i) => { text(a, 12, 34 + i * 13, 7, '#ffd84a'); text(b, 120, 34 + i * 13, 6.5, '#e8e2d0'); });
   text('막기 연타는 받아넘기기가 되지 않는다. 읽고, 기다려라.', W / 2, H - 16, 7, '#c9b98a', 'center');
 }
 function drawCard() {
